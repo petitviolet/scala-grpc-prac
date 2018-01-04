@@ -8,6 +8,7 @@ service MyService {
 }
 
 message ResponseType {
+  string message = 1;
 }
 
 message RequestType {

@@ -12,16 +12,12 @@ import scala.concurrent.Future
 
 import scala.concurrent.ExecutionContext
 
-object main extends App {
-  private val logger = LoggerFactory.getLogger(getClass)
-
+object server extends App {
   private def start(): Unit = {
     val server = new GrpcServer(ExecutionContext.global)
     server.start()
     server.blockUnitShutdown()
   }
-
-  private val port = sys.env.getOrElse("SERVER_PORT", "50051").toInt
 
   start()
 }
@@ -29,7 +25,7 @@ object main extends App {
 class GrpcServer(executionContext: ExecutionContext) { self =>
   private val logger = LoggerFactory.getLogger(getClass)
   private val port = sys.env.getOrElse("SERVER_PORT", "50051").toInt
-  private[this] var server: Server = null
+  private var server: Server = _
 
   def start(): Unit = {
     server = ServerBuilder.forPort(port).addService(
@@ -56,13 +52,19 @@ class GrpcServer(executionContext: ExecutionContext) { self =>
   }
 
   private class MyServiceImpl extends MyService {
+    import collection.mutable
+    private val users: mutable.ListBuffer[User] = mutable.ListBuffer()
+
     override def listUser(request: RequestType, responseObserver: StreamObserver[User]): Unit = {
       println(s"request: ${request.toString}")
+      users.foreach { responseObserver.onNext }
+      responseObserver.onCompleted()
     }
 
-    override def addUser(request: User): Future[ResponseType] = Future.successful {
-      println(s"request: ${request.toString}")
-      new ResponseType()
+    override def addUser(user: User): Future[ResponseType] = Future.successful {
+      println(s"request: ${user.toString}")
+      users += user
+      new ResponseType(message = s"added $user")
     }
   }
 }
