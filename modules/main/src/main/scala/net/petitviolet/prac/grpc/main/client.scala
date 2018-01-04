@@ -2,7 +2,7 @@ package net.petitviolet.prac.grpc.main
 
 import java.util.concurrent.TimeUnit
 
-import io.grpc.{ManagedChannel, ManagedChannelBuilder, StatusRuntimeException}
+import io.grpc._
 import org.slf4j.LoggerFactory
 import proto.my_service.{MyServiceGrpc, RequestType, User}
 import proto.my_service.MyServiceGrpc.MyServiceBlockingStub
