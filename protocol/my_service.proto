@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package proto;
+
+service MyService {
+  rpc ListUser(RequestType) returns (stream User) {};
+  rpc AddUser(User) returns (ResponseType) {};
+}
+
+message ResponseType {
+}
+
+message RequestType {
+}
+
+message User {
+  string name = 1;
+  int32 age = 2;
+}
