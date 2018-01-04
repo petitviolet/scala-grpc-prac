@@ -1,42 +1,50 @@
 package net.petitviolet.prac.grpc.main
 
+import io.grpc.stub.StreamObserver
 import io.grpc.{Server, ServerBuilder}
+import org.slf4j.{Logger, LoggerFactory}
+import proto.my_service.{MyServiceGrpc, RequestType, ResponseType, User}
+import proto.my_service.MyServiceGrpc.MyService
+
+import scala.concurrent.Future
 
 // ProtocolBufferから自動生成されたライブラリたち
-import users.users.{RequestType, UsersGrpc}
 
 import scala.concurrent.ExecutionContext
 
 object main extends App {
-  private val logger = Logger.getLogger(classOf[GrpcServer].getName)
+  private val logger = LoggerFactory.getLogger(getClass)
 
-  def main(args: Array[String]): Unit = {
+  private def start(): Unit = {
     val server = new GrpcServer(ExecutionContext.global)
     server.start()
     server.blockUnitShutdown()
   }
 
-  private val port = sys.env.getOrElse("SERVER_PORT", "50051").asInstanceOf[String].toInt
+  private val port = sys.env.getOrElse("SERVER_PORT", "50051").toInt
+
+  start()
 }
 
 class GrpcServer(executionContext: ExecutionContext) { self =>
-  private val port = sys.env.getOrElse("SERVER_PORT", "50051").asInstanceOf[String].toInt
+  private val logger = LoggerFactory.getLogger(getClass)
+  private val port = sys.env.getOrElse("SERVER_PORT", "50051").toInt
   private[this] var server: Server = null
 
   def start(): Unit = {
     server = ServerBuilder.forPort(port).addService(
-      UsersGrpc.bindService(new UsersImpl, executionContext)
+      MyServiceGrpc.bindService(new MyServiceImpl, executionContext)
     ).build.start
-    Logger.info("gRPC server started, listening on " + port)
+    logger.info("gRPC server started, listening on " + port)
     sys.addShutdownHook {
-      Logger.info("*** shutting down gPRC server since JVM is shutting down")
+      logger.info("*** shutting down gPRC server since JVM is shutting down")
       self.stop()
     }
   }
 
   def stop(): Unit = {
     if (server != null) {
-      Logger.info("*** gRPC server shutdown")
+      logger.info("*** gRPC server shutdown")
       server.shutdown()
     }
   }
@@ -47,7 +55,14 @@ class GrpcServer(executionContext: ExecutionContext) { self =>
     }
   }
 
-  private class UsersImpl extends UsersGrpc.Users {
-    /* 中略 */
+  private class MyServiceImpl extends MyService {
+    override def listUser(request: RequestType, responseObserver: StreamObserver[User]): Unit = {
+      println(s"request: ${request.toString}")
+    }
+
+    override def addUser(request: User): Future[ResponseType] = Future.successful {
+      println(s"request: ${request.toString}")
+      new ResponseType()
+    }
   }
 }
