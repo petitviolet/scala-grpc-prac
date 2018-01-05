@@ -45,6 +45,7 @@ lazy val grpcPrac = (project in file("."))
 lazy val main = (project in file("modules/main"))
   .settings(commonSettings("main"))
   .settings(grpcSettings)
+  .dependsOn(model)
 
 lazy val model = (project in file("modules/model"))
   .settings(commonSettings("model"))

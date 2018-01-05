@@ -1,12 +1,15 @@
 package net.petitviolet.prac.grpc.main
 
+import java.util.concurrent.Executors
+
 import io.grpc.stub.StreamObserver
 import io.grpc.{Server, ServerBuilder}
-import org.slf4j.{Logger, LoggerFactory}
-import proto.my_service.{MyServiceGrpc, RequestType, ResponseType, User}
+import net.petitviolet.prac.grpc.model
+import org.slf4j.LoggerFactory
 import proto.my_service.MyServiceGrpc.MyService
+import proto.my_service.{MyServiceGrpc, RequestType, ResponseType, User}
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContextExecutor, Future}
 
 // ProtocolBufferから自動生成されたライブラリたち
 
@@ -51,20 +54,26 @@ class GrpcServer(executionContext: ExecutionContext) { self =>
     }
   }
 
-  private class MyServiceImpl extends MyService {
-    import collection.mutable
-    private val users: mutable.ListBuffer[User] = mutable.ListBuffer()
+  private class MyServiceImpl extends MyService with model.MixInUserRepository {
+    private implicit val executionContext: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(4))
 
     override def listUser(request: RequestType, responseObserver: StreamObserver[User]): Unit = {
       println(s"request: ${request.toString}")
-      users.foreach { responseObserver.onNext }
-      responseObserver.onCompleted()
+      userRepository.findAll().foreach { users: Seq[model.User] =>
+        users.foreach { user =>
+          val grpcUser = new User(user.name, user.age)
+          responseObserver.onNext(grpcUser)
+        }
+        responseObserver.onCompleted()
+      }
     }
 
-    override def addUser(user: User): Future[ResponseType] = Future.successful {
+    override def addUser(user: User): Future[ResponseType] = {
       println(s"request: ${user.toString}")
-      users += user
-      new ResponseType(message = s"added $user")
+      val mUser: model.User = model.User.create(user.name, user.age)
+      userRepository.store(mUser).map { _ =>
+        new ResponseType(message = s"added $mUser")
+      }
     }
   }
 }
