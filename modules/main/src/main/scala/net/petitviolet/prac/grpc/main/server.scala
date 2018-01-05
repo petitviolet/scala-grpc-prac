@@ -6,18 +6,17 @@ import io.grpc.stub.StreamObserver
 import io.grpc.{Server, ServerBuilder}
 import net.petitviolet.prac.grpc.model
 import org.slf4j.LoggerFactory
-import proto.my_service.MyServiceGrpc.MyService
-import proto.my_service.{MyServiceGrpc, RequestType, ResponseType, User}
+import proto.my_service._
 
-import scala.concurrent.{ExecutionContextExecutor, Future}
-
-// ProtocolBufferから自動生成されたライブラリたち
+import scala.concurrent.Future
 
 import scala.concurrent.ExecutionContext
 
 object server extends App {
+  private val executionContext: ExecutionContext = ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
+
   private def start(): Unit = {
-    val server = new GrpcServer(ExecutionContext.global)
+    val server = new GrpcServer(executionContext)
     server.start()
     server.blockUnitShutdown()
   }
@@ -35,6 +34,7 @@ class GrpcServer(executionContext: ExecutionContext) { self =>
       MyServiceGrpc.bindService(new MyServiceImpl, executionContext)
     ).build.start
     logger.info("gRPC server started, listening on " + port)
+
     sys.addShutdownHook {
       logger.info("*** shutting down gPRC server since JVM is shutting down")
       self.stop()
@@ -54,7 +54,7 @@ class GrpcServer(executionContext: ExecutionContext) { self =>
     }
   }
 
-  private class MyServiceImpl extends MyService with model.MixInUserRepository {
+  private class MyServiceImpl extends MyServiceGrpc.MyService with model.MixInUserRepository {
     private implicit val executionContext: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(4))
 
     override def listUser(request: RequestType, responseObserver: StreamObserver[User]): Unit = {
