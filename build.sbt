@@ -24,7 +24,7 @@ def grpcSettings = {
 
   Seq(
     PB.targets in Compile := Seq(
-      scalapb.gen() -> (sourceManaged in Compile).value
+      scalapb.gen(singleLineToString = true) -> (sourceManaged in Compile).value,
     ),
     PB.protoSources in Compile +=
       (baseDirectory in LocalRootProject).value / "protocol",
