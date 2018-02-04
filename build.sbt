@@ -47,7 +47,21 @@ lazy val grpcProtocol = (project in file("modules/protocol"))
   .settings(grpcProtocolSettings)
 
 lazy val main = (project in file("modules/main"))
-  .settings(commonSettings("main"))
+  .enablePlugins(JavaAppPackaging)
+  .settings(
+    commonSettings("main"),
+  )
+  .settings(
+    packageName in Docker := "grpc-sample",
+    version in Docker := libVersion,
+    dockerRepository := Some("petitviolet"),
+    maintainer in Docker := "petitviolet <mail@petitviolet.net>",
+    dockerExposedPorts := List(50051),
+    dockerBaseImage := "openjdk:latest",
+    // mainClass in Compile := Some("net.petitviolet.prac.grpc.main.server"),
+    dockerEntrypoint := List("bin/server"),
+    dockerCmd := Nil
+  )
   .dependsOn(model, grpcProtocol)
 
 lazy val model = (project in file("modules/model"))
