@@ -4,8 +4,7 @@ import java.util.concurrent.TimeUnit
 
 import io.grpc._
 import org.slf4j.LoggerFactory
-import proto.my_service.{MyServiceGrpc, RequestType, User}
-import proto.my_service.MyServiceGrpc.MyServiceBlockingStub
+import proto.my_service.{MyServiceGrpc, ListUserRequest, User}
 
 object client extends App {
   def start(): Unit = {
@@ -29,15 +28,15 @@ object client extends App {
 object GrpcClient {
   def apply(host: String, port: Int): GrpcClient = {
     val channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext(true).build
-    val blockingStub = MyServiceGrpc.blockingStub(channel)
-    new GrpcClient(channel, blockingStub)
+    val client: MyServiceGrpc.MyServiceBlockingClient = MyServiceGrpc.blockingStub(channel)
+    new GrpcClient(channel, client)
   }
 }
 
 class GrpcClient private(
-                                private val channel: ManagedChannel,
-                                private val blockingStub: MyServiceBlockingStub
-                              ) {
+  private val channel: ManagedChannel,
+  private val client: MyServiceGrpc.MyServiceBlockingClient
+) {
   private val logger = LoggerFactory.getLogger(getClass)
 
   def shutdown(): Unit = {
@@ -56,12 +55,12 @@ class GrpcClient private(
   }
 
   def list(): Unit = rpc {
-    val users: Iterator[User] = blockingStub.listUser(new RequestType)
+    val users: Iterator[User] = client.listUser(new ListUserRequest)
     logger.info(s"list user: ${users.toList}")
   }
 
   def add(name: String): Unit = rpc {
-    val response = blockingStub.addUser(new User(name = name, age = 81))
-    logger.info("add response: " + response.message)
+    val response = client.addUser(new User(name = "alice", age = 81))
+    logger.info("response message: " + response.message)
   }
 }

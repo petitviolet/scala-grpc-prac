@@ -8,9 +8,7 @@ import net.petitviolet.prac.grpc.model
 import org.slf4j.LoggerFactory
 import proto.my_service._
 
-import scala.concurrent.Future
-
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 object server extends App {
   private val executionContext: ExecutionContext = ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
@@ -54,10 +52,10 @@ class GrpcServer(executionContext: ExecutionContext) { self =>
     }
   }
 
-  private class MyServiceImpl extends MyServiceGrpc.MyService with model.MixInUserRepository {
+  class MyServiceImpl extends MyServiceGrpc.MyService with model.MixInUserRepository {
     private implicit val executionContext: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(4))
 
-    override def listUser(request: RequestType, responseObserver: StreamObserver[User]): Unit = {
+    override def listUser(request: ListUserRequest, responseObserver: StreamObserver[User]): Unit = {
       println(s"request: ${request.toString}")
       userRepository.findAll().foreach { users: Seq[model.User] =>
         users.foreach { user =>
@@ -75,5 +73,7 @@ class GrpcServer(executionContext: ExecutionContext) { self =>
         new ResponseType(message = s"added $mUser")
       }
     }
+
   }
+
 }
