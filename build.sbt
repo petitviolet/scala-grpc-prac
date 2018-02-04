@@ -19,7 +19,7 @@ def commonSettings(_name: String) = Seq(
   name := _name,
 )
 
-def grpcSettings = {
+def grpcProtocolSettings = {
   import com.trueaccord.scalapb.compiler.Version
 
   Seq(
@@ -27,13 +27,13 @@ def grpcSettings = {
       scalapb.gen(singleLineToString = true) -> (sourceManaged in Compile).value,
     ),
     PB.protoSources in Compile +=
-      (baseDirectory in LocalRootProject).value / "protocol",
+      (baseDirectory in ThisProject).value / "src" / "main" / "protocol",
+
     libraryDependencies ++= Seq(
       "com.trueaccord.scalapb" %% "scalapb-runtime" % Version.scalapbVersion % "protobuf",
-      "io.grpc" % "grpc-netty" % Version.grpcJavaVersion,
-      "com.trueaccord.scalapb" %% "scalapb-runtime" % Version.scalapbVersion % "protobuf",
-      "com.trueaccord.scalapb" %% "scalapb-runtime-grpc" % Version.scalapbVersion,
       "io.grpc" % "grpc-all" % Version.grpcJavaVersion,
+      "com.trueaccord.scalapb" %% "scalapb-runtime-grpc" % Version.scalapbVersion,
+      "io.grpc" % "grpc-netty" % Version.grpcJavaVersion,
     )
   )
 }
@@ -42,10 +42,13 @@ lazy val grpcPrac = (project in file("."))
   .settings(commonSettings("grpcPrac"))
   .aggregate(main)
 
+lazy val grpcProtocol = (project in file("modules/protocol"))
+  .settings(commonSettings("grpcProtocol"))
+  .settings(grpcProtocolSettings)
+
 lazy val main = (project in file("modules/main"))
   .settings(commonSettings("main"))
-  .settings(grpcSettings)
-  .dependsOn(model)
+  .dependsOn(model, grpcProtocol)
 
 lazy val model = (project in file("modules/model"))
   .settings(commonSettings("model"))
