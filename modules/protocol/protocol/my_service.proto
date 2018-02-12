@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package proto;
+
+service MyService {
+    rpc ShowEmployees (ShowEmployeeRequest) returns (stream Employee) {
+    };
+    rpc AddEmployee (stream Employee) returns (MessageResponse) {
+    };
+    rpc ShowOrganization (ShowOrganizationRequest) returns (Organization) {
+    };
+}
+
+message MessageResponse {
+    string message = 1;
+}
+
+message ShowEmployeeRequest {
+    // optional
+    int32 organizationId = 1;
+}
+
+message ShowOrganizationRequest {
+    int32 organizationId = 1;
+}
+
+message Employee {
+    string name = 1;
+    int32 age = 2;
+    enum Post {
+        NoTitle = 0;
+        Manager = 1;
+        Officer = 2;
+    }
+    int32 organizationId = 3;
+}
+
+message Organization {
+    int32 id = 1;
+    string name = 2;
+    repeated Employee emproyees = 3;
+}
+
