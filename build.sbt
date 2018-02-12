@@ -8,6 +8,7 @@ val commonDependencies = Seq(
   "org.slf4j" % "slf4j-api" % "1.7.25",
   "ch.qos.logback" % "logback-classic" % "1.2.3",
   "com.lihaoyi" %% "sourcecode" % "0.1.3",
+  "net.petitviolet" %% "operator" % "+",
   "org.scalatest" %% "scalatest" % "3.0.4" % Test,
   "org.scalacheck" %% "scalacheck" % "1.13.4" % Test
 )
@@ -24,16 +25,16 @@ def grpcProtocolSettings = {
 
   Seq(
     PB.targets in Compile := Seq(
-      scalapb.gen(singleLineToString = true) -> (sourceManaged in Compile).value,
+      scalapb.gen(singleLineToString = true) -> (sourceManaged in Compile).value
     ),
     PB.protoSources in Compile +=
-      (baseDirectory in ThisProject).value / "src" / "main" / "protocol",
+      (baseDirectory in ThisProject).value / "protocol",
 
     libraryDependencies ++= Seq(
       "com.trueaccord.scalapb" %% "scalapb-runtime" % Version.scalapbVersion % "protobuf",
       "io.grpc" % "grpc-all" % Version.grpcJavaVersion,
       "com.trueaccord.scalapb" %% "scalapb-runtime-grpc" % Version.scalapbVersion,
-      "io.grpc" % "grpc-netty" % Version.grpcJavaVersion,
+      "io.grpc" % "grpc-netty" % Version.grpcJavaVersion
     )
   )
 }
@@ -42,8 +43,8 @@ lazy val grpcPrac = (project in file("."))
   .settings(commonSettings("grpcPrac"))
   .aggregate(main)
 
-lazy val grpcProtocol = (project in file("modules/protocol"))
-  .settings(commonSettings("grpcProtocol"))
+lazy val protocol = (project in file("modules/protocol"))
+  .settings(commonSettings("protocol"))
   .settings(grpcProtocolSettings)
 
 lazy val main = (project in file("modules/main"))
@@ -62,7 +63,7 @@ lazy val main = (project in file("modules/main"))
     dockerEntrypoint := List("bin/server"),
     dockerCmd := Nil
   )
-  .dependsOn(model, grpcProtocol)
+  .dependsOn(model, protocol)
 
 lazy val model = (project in file("modules/model"))
   .settings(commonSettings("model"))
