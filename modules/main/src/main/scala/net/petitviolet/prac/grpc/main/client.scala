@@ -4,13 +4,10 @@ import java.util.concurrent.{ CountDownLatch, Executors, TimeUnit }
 
 import io.grpc._
 import io.grpc.stub.StreamObserver
+import net.petitviolet.prac.grpc.protocol._
 import org.slf4j.LoggerFactory
-import proto.my_service._
-import net.petitviolet.operator._
 
-import scala.concurrent.duration.Duration
-import scala.concurrent.{ Await, ExecutionContext, Future }
-import scala.util.{ Failure, Success }
+import scala.concurrent.ExecutionContext
 
 object client extends App {
   def start(): Unit = {

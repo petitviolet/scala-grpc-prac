@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package proto;
+package net.petitviolet.prac.grpc;
 
 service MyService {
     // unary
