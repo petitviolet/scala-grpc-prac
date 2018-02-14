@@ -3,12 +3,18 @@ syntax = "proto3";
 package proto;
 
 service MyService {
-    rpc ShowEmployees (ShowEmployeeRequest) returns (stream Employee) {
-    };
-    rpc AddEmployee (stream Employee) returns (MessageResponse) {
-    };
+    // unary
     rpc ShowOrganization (ShowOrganizationRequest) returns (Organization) {
     };
+    // server stream
+    rpc ShowEmployees (ShowEmployeeRequest) returns (stream Employee) {
+    };
+    // client stream
+    rpc AddEmployee (stream Employee) returns (MessageResponse) {
+    };
+
+    // bidirectional stream
+    rpc Lottery(stream FetchRandomRequest) returns (stream Employee) {};
 }
 
 message MessageResponse {
@@ -22,6 +28,10 @@ message ShowEmployeeRequest {
 
 message ShowOrganizationRequest {
     int32 organizationId = 1;
+}
+
+message FetchRandomRequest {
+
 }
 
 message Employee {
