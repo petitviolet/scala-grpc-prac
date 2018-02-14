@@ -15,19 +15,35 @@ import scala.util.{ Failure, Success }
 object client extends App {
   def start(): Unit = {
     val client = GrpcClient("localhost", 50051)(ExecutionContext.fromExecutor(Executors.newCachedThreadPool()))
+    def sleep(milli: Long) = {
+      println(s"sleeping...")
+      Thread.sleep(milli)
+      println(s"awake!")
+    }
     try {
       println("================")
-      client.list()
+      client.blockingShow()
+      sleep(1000L)
       println("================")
+
       val name = args.headOption.getOrElse("alice")
-      Await.ready(client.add(name), Duration.Inf)
+      client.addEmployee(name)
+      sleep(1000L)
       println("================")
-      client.list()
+
+      client.showEmployees()
+      sleep(1000L)
+
       println("================")
+      client.lottery()
+      sleep(1000L)
+      println("================")
+
     } finally {
       client.shutdown()
     }
   }
+
   start()
 }
 
@@ -46,7 +62,10 @@ class GrpcClient private(
   private val logger = LoggerFactory.getLogger(getClass)
 
   def shutdown(): Unit = {
-    channel.shutdown.awaitTermination(5, TimeUnit.SECONDS)
+    logger.info(s"client shutting down...")
+    channel.awaitTermination(5, TimeUnit.SECONDS)
+    channel.shutdown()
+    logger.info(s"client shutting down completed: ${channel.isShutdown}")
   }
 
   private def rpc[A](f: => A): A = {
@@ -55,63 +74,99 @@ class GrpcClient private(
     }
     catch {
       case e: StatusRuntimeException =>
-        logger.error(s"RPC failed: ${e.getStatus}", e)
+        logger.error(s"RPC failed: ${ e.getStatus }", e)
         throw e
     }
   }
 
-  def list(): Unit = rpc {
+  def blockingShow(): Unit = rpc {
     val org = blockingClient.showOrganization(new ShowOrganizationRequest(organizationId = 2))
     logger.info(s"org-2: $org")
     val allEmployees = blockingClient.showEmployees(new ShowEmployeeRequest())
-    logger.info(s"all employees: ${allEmployees.toList}")
+    logger.info(s"all employees: ${ allEmployees.toList }")
     val employees = blockingClient.showEmployees(new ShowEmployeeRequest(organizationId = 2))
-    logger.info(s"org-2 employees: ${employees.toList}")
+    logger.info(s"org-2 employees: ${ employees.toList }")
   }
 
-  def add(name: String): Future[Unit] = rpc {
-    logger.info(s"start add")
-    val finishLatch = new CountDownLatch(1)
-    val responseObserver = new StreamObserver[MessageResponse] {
+  def showEmployees(): Unit = rpc {
+    val latch = new CountDownLatch(1)
+    val responseObserver = new StreamObserver[Employee] {
       override def onError(t: Throwable): Unit = {
-        logger.error("failed to add employee", t)
-        finishLatch.countDown()
+        logger.error(s"showEmployee onError", t)
       }
-
       override def onCompleted(): Unit = {
-        logger.info("completed to add employee")
-        finishLatch.countDown()
+        logger.info(s"showEmployee onComplete")
+        latch.countDown()
       }
 
-      override def onNext(value: MessageResponse): Unit = logger.info(s"onNext. message = ${ value.message }")
+      override def onNext(value: Employee): Unit = {
+        logger.info(s"showEmployee onNext: $value")
+      }
+    }
+    asyncClient.showEmployees(new ShowEmployeeRequest(), responseObserver)
+    latch.await(3, TimeUnit.SECONDS)
+  }
+
+  def lottery() = rpc {
+    val COUNT = 4
+    logger.info(s"lottery start")
+    val latch = new CountDownLatch(COUNT)
+    val responseObserver = new StreamObserver[Employee] {
+      override def onError(t: Throwable): Unit = {
+        logger.error(s"lottery onError", t)
+      }
+      override def onCompleted(): Unit = {
+        logger.info(s"lottery onComplete")
+      }
+
+      override def onNext(value: Employee): Unit = {
+        logger.info(s"lottery onNext: $value, count: ${latch.getCount}")
+        latch.countDown()
+      }
+    }
+    val requestObserver: StreamObserver[FetchRandomRequest] = asyncClient.lottery(responseObserver)
+
+    (1 to COUNT).foreach { i =>
+      logger.info(s"lottery count: $i")
+      requestObserver.onNext(FetchRandomRequest())
+    }
+    logger.info("lottery awaiting....")
+    latch.await(3, TimeUnit.SECONDS)
+    logger.info("lottery completed")
+
+    responseObserver.onCompleted()
+    requestObserver.onCompleted()
+  }
+
+  def addEmployee(name: String) = rpc {
+    val COUNT = 3
+    logger.info(s"start add")
+    val latch = new CountDownLatch(COUNT)
+    val responseObserver = new StreamObserver[MessageResponse] {
+      override def onError(t: Throwable): Unit =
+        logger.error("add failed to add employee", t)
+
+      override def onCompleted(): Unit =
+        logger.info("add completed to add employee")
+
+      override def onNext(value: MessageResponse): Unit = {
+        logger.info(s"add onNext. message = ${ value.message }, count = ${latch.getCount}")
+        latch.countDown()
+      }
+
     }
 
-    Future {
-      val requestObserver: StreamObserver[Employee] = asyncClient.addEmployee(responseObserver)
-      try {
-        (1 to 5).foreach { i =>
-          val employee = Employee(s"${ name }-$i", i * 10, i)
-          requestObserver.onNext(employee)
-        }
-        logger.info(s"waiting...")
-        finishLatch.await(500, TimeUnit.MILLISECONDS)
-        logger.info(s"finish!")
-        requestObserver.onCompleted()
-      } catch {
-        case t: Throwable =>
-          logger.error(s"failed to add employee...", t)
-          requestObserver.onError(t)
-      } finally {
-        logger.info(s"add completed")
-      }
-    } <| {
-      _ onComplete {
-        case Success(()) =>
-          logger.info("succeeded add Future")
-        case Failure(t) =>
-          logger.error("failed to add Future")
-          throw t
-      }
+    val requestObserver: StreamObserver[Employee] = asyncClient.addEmployee(responseObserver)
+    (1 to COUNT).foreach { i =>
+      val employee = Employee(s"${ name }-$i", i * 10, i)
+      requestObserver.onNext(employee)
     }
+
+    logger.info("add awaiting....")
+    latch.await(3, TimeUnit.SECONDS)
+    logger.info("add completed")
+
+    responseObserver.onCompleted()
+    requestObserver.onCompleted()
   }
 }
