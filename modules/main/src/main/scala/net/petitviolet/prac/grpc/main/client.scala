@@ -7,7 +7,8 @@ import io.grpc.stub.StreamObserver
 import net.petitviolet.prac.grpc.protocol.MyService._
 import org.slf4j.LoggerFactory
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.Duration
+import scala.concurrent.{ Await, ExecutionContext, Future }
 
 object client extends App {
   def start(): Unit = {
@@ -37,6 +38,7 @@ object client extends App {
       println("================")
 
     } finally {
+      Thread.sleep(1000L)
       client.shutdown()
     }
   }
@@ -55,7 +57,7 @@ class GrpcClient private(
   private val channel: ManagedChannel,
 )(implicit val ec: ExecutionContext) {
   private val blockingClient: MyServiceGrpc.MyServiceBlockingClient = MyServiceGrpc.blockingStub(channel)
-  private val asyncClient = MyServiceGrpc.stub(channel)
+  private val asyncClient: MyServiceGrpc.MyServiceStub = MyServiceGrpc.stub(channel)
   private val logger = LoggerFactory.getLogger(getClass)
 
   def shutdown(): Unit = {
@@ -76,8 +78,11 @@ class GrpcClient private(
     }
   }
 
+  // unary, server streaming
   def blockingShow(): Unit = rpc {
-    val org = blockingClient.showOrganization(new ShowOrganizationRequest(organizationId = 2))
+    val orgF: Future[Organization] = asyncClient.showOrganization(new ShowOrganizationRequest(organizationId = 2))
+    logger.info(s"orgF: ${Await.result(orgF, Duration.Inf)}")
+    val org: Organization = blockingClient.showOrganization(new ShowOrganizationRequest(organizationId = 2))
     logger.info(s"org-2: $org")
     val allEmployees = blockingClient.showEmployees(new ShowEmployeeRequest())
     logger.info(s"all employees: ${ allEmployees.toList }")
@@ -85,6 +90,40 @@ class GrpcClient private(
     logger.info(s"org-2 employees: ${ employees.toList }")
   }
 
+  // client streaming
+  def addEmployee(name: String) = rpc {
+    val COUNT = 3
+    logger.info(s"start add")
+    val latch = new CountDownLatch(COUNT)
+    val responseObserver = new StreamObserver[MessageResponse] {
+      override def onError(t: Throwable): Unit =
+        logger.error("add failed to add employee", t)
+
+      override def onCompleted(): Unit =
+        logger.info("add completed to add employee")
+
+      override def onNext(value: MessageResponse): Unit = {
+        logger.info(s"add onNext. message = ${ value.message }, count = ${latch.getCount}")
+        latch.countDown()
+      }
+
+    }
+
+    val requestObserver: StreamObserver[Employee] = asyncClient.addEmployee(responseObserver)
+    (1 to COUNT).foreach { i =>
+      val employee = Employee(s"${ name }-$i", i * 10, i)
+      requestObserver.onNext(employee)
+    }
+
+    logger.info("add awaiting....")
+    latch.await(3, TimeUnit.SECONDS)
+    logger.info("add completed")
+
+    requestObserver.onCompleted() // don't forget
+    responseObserver.onCompleted()
+  }
+
+  // server streaming
   def showEmployees(): Unit = rpc {
     val latch = new CountDownLatch(1)
     val responseObserver = new StreamObserver[Employee] {
@@ -104,6 +143,7 @@ class GrpcClient private(
     latch.await(3, TimeUnit.SECONDS)
   }
 
+  // bidirectional streaming
   def lottery() = rpc {
     val COUNT = 4
     logger.info(s"lottery start")
@@ -135,35 +175,4 @@ class GrpcClient private(
     requestObserver.onCompleted()
   }
 
-  def addEmployee(name: String) = rpc {
-    val COUNT = 3
-    logger.info(s"start add")
-    val latch = new CountDownLatch(COUNT)
-    val responseObserver = new StreamObserver[MessageResponse] {
-      override def onError(t: Throwable): Unit =
-        logger.error("add failed to add employee", t)
-
-      override def onCompleted(): Unit =
-        logger.info("add completed to add employee")
-
-      override def onNext(value: MessageResponse): Unit = {
-        logger.info(s"add onNext. message = ${ value.message }, count = ${latch.getCount}")
-        latch.countDown()
-      }
-
-    }
-
-    val requestObserver: StreamObserver[Employee] = asyncClient.addEmployee(responseObserver)
-    (1 to COUNT).foreach { i =>
-      val employee = Employee(s"${ name }-$i", i * 10, i)
-      requestObserver.onNext(employee)
-    }
-
-    logger.info("add awaiting....")
-    latch.await(3, TimeUnit.SECONDS)
-    logger.info("add completed")
-
-    responseObserver.onCompleted()
-    requestObserver.onCompleted()
-  }
 }
