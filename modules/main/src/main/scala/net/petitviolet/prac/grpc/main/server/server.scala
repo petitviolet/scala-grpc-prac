@@ -6,7 +6,7 @@ import io.grpc.stub.StreamObserver
 import io.grpc.{ Server, ServerBuilder, ServerInterceptors }
 import net.petitviolet.prac.grpc.model
 import net.petitviolet.operator._
-import net.petitviolet.prac.grpc.protocol._
+import net.petitviolet.prac.grpc.protocol.MyService._
 
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success }

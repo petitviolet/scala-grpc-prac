@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package net.petitviolet.prac.grpc;
+package net.petitviolet.prac.grpc.protocol;
 
 service MyService {
     // unary
@@ -31,7 +31,6 @@ message ShowOrganizationRequest {
 }
 
 message FetchRandomRequest {
-
 }
 
 message Employee {
