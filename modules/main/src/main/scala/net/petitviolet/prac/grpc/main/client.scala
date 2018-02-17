@@ -8,7 +8,7 @@ import net.petitviolet.prac.grpc.protocol.MyService._
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration.Duration
-import scala.concurrent.{ Await, ExecutionContext, Future }
+import scala.concurrent.{ Await, ExecutionContext, Future, Promise }
 
 object client extends App {
   def start(): Unit = {
@@ -29,7 +29,7 @@ object client extends App {
       sleep(1000L)
       println("================")
 
-      client.showEmployees()
+      Await.ready(client.showEmployees(), Duration.Inf)
       sleep(1000L)
 
       println("================")
@@ -92,9 +92,7 @@ class GrpcClient private(
 
   // client streaming
   def addEmployee(name: String) = rpc {
-    val COUNT = 3
     logger.info(s"start add")
-    val latch = new CountDownLatch(COUNT)
     val responseObserver = new StreamObserver[MessageResponse] {
       override def onError(t: Throwable): Unit =
         logger.error("add failed to add employee", t)
@@ -103,36 +101,30 @@ class GrpcClient private(
         logger.info("add completed to add employee")
 
       override def onNext(value: MessageResponse): Unit = {
-        logger.info(s"add onNext. message = ${ value.message }, count = ${latch.getCount}")
-        latch.countDown()
+        logger.info(s"add onNext. message = ${ value.message }}")
       }
-
     }
 
     val requestObserver: StreamObserver[Employee] = asyncClient.addEmployee(responseObserver)
-    (1 to COUNT).foreach { i =>
+    (1 to 3).foreach { i =>
       val employee = Employee(s"${ name }-$i", i * 10, i)
       requestObserver.onNext(employee)
     }
-
-    logger.info("add awaiting....")
-    latch.await(3, TimeUnit.SECONDS)
-    logger.info("add completed")
 
     requestObserver.onCompleted() // don't forget
     responseObserver.onCompleted()
   }
 
   // server streaming
-  def showEmployees(): Unit = rpc {
-    val latch = new CountDownLatch(1)
+  def showEmployees(): Future[Unit] = rpc {
+    val promise = Promise[Unit]()
     val responseObserver = new StreamObserver[Employee] {
       override def onError(t: Throwable): Unit = {
         logger.error(s"showEmployee onError", t)
       }
       override def onCompleted(): Unit = {
         logger.info(s"showEmployee onComplete")
-        latch.countDown()
+        promise.success(())
       }
 
       override def onNext(value: Employee): Unit = {
@@ -140,39 +132,36 @@ class GrpcClient private(
       }
     }
     asyncClient.showEmployees(new ShowEmployeeRequest(), responseObserver)
-    latch.await(3, TimeUnit.SECONDS)
+    promise.future
   }
 
   // bidirectional streaming
-  def lottery() = rpc {
-    val COUNT = 4
+  def lottery(): Future[Unit] = rpc {
     logger.info(s"lottery start")
-    val latch = new CountDownLatch(COUNT)
+    val promise = Promise[Unit]()
     val responseObserver = new StreamObserver[Employee] {
       override def onError(t: Throwable): Unit = {
         logger.error(s"lottery onError", t)
+        promise.failure(t)
       }
       override def onCompleted(): Unit = {
         logger.info(s"lottery onComplete")
+        promise.success(())
       }
 
       override def onNext(value: Employee): Unit = {
-        logger.info(s"lottery onNext: $value, count: ${latch.getCount}")
-        latch.countDown()
+        logger.info(s"lottery onNext: $value")
       }
     }
     val requestObserver: StreamObserver[FetchRandomRequest] = asyncClient.lottery(responseObserver)
 
-    (1 to COUNT).foreach { i =>
+    (1 to 3).foreach { i =>
       logger.info(s"lottery count: $i")
       requestObserver.onNext(FetchRandomRequest())
     }
-    logger.info("lottery awaiting....")
-    latch.await(3, TimeUnit.SECONDS)
-    logger.info("lottery completed")
 
-    responseObserver.onCompleted()
     requestObserver.onCompleted()
+    promise.future
   }
 
 }
