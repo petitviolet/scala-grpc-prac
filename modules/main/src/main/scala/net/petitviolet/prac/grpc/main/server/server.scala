@@ -109,7 +109,7 @@ class GrpcServer(executionContext: ExecutionContext) {
     // client stream
     override def addEmployee(responseObserver: StreamObserver[MessageResponse]): StreamObserver[Employee] = {
       new StreamObserver[Employee] {
-        private var employees: Seq[model.Employee] = Nil
+        @volatile private var employees: Seq[model.Employee] = Nil
         override def onError(t: Throwable): Unit = {
           logger.error("addEmployee onError", t)
           responseObserver.onError(t)
@@ -128,6 +128,9 @@ class GrpcServer(executionContext: ExecutionContext) {
               case Some(organization) =>
                 val mEmployee = model.Employee.create(employee.name, employee.age, organization)
                 employees = mEmployee +: employees
+                logger.info(s"===========sleeping...")
+                Thread.sleep(1000L)
+                logger.info(s"===========awake!")
                 employeeRepository.store(mEmployee)
               case None =>
                 throw new RuntimeException(s"addEmployee invalid request organization id = ${ employee.organizationId }")
@@ -150,18 +153,14 @@ class GrpcServer(executionContext: ExecutionContext) {
 
         override def onCompleted(): Unit = {
           logger.info(s"lottery onCompleted")
+          responseObserver.onCompleted()
         }
 
         override def onNext(value: FetchRandomRequest): Unit = {
           val allF = employeeRepository.findAll()
-          allF.foreach { all =>
-            all.nonEmpty.fold{
-              val em = all.head
-              logger.info(s"lottery $em")
-              responseObserver.onNext(Employee(em.name, em.age, em.organization.id))
-            }{
-              logger.info(s"lottery not found")
-            }
+          allF.foreach { _.headOption foreach { em =>
+            logger.info(s"lottery $em")
+            responseObserver.onNext(Employee(em.name, em.age, em.organization.id))
           }
         }
       }
